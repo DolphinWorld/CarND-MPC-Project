@@ -11,6 +11,10 @@
 
 // for convenience
 using json = nlohmann::json;
+const double dt = 0.1;
+const double Lf = 2.67;
+double prev_delta_ = 0;
+double prev_a_ = 0;
 
 // For converting back and forth between radians and degrees.
 constexpr double pi() { return M_PI; }
@@ -116,14 +120,25 @@ int main() {
           }
 
           auto coeffs = polyfit(x_path, y_path, 3);
-          const double cte = coeffs[0];
-          const double epsi = -atan(coeffs[1]);
+          double cte = coeffs[0];
+          double epsi = -atan(coeffs[1]);
           
           Eigen::VectorXd states(6);
-          states << 0, 0, 0, v, cte, epsi;
+          
+          double lag = dt / 3600;
+          px = v * cos(psi) * lag;
+          py = v * sin(psi) * lag;
+          v  = v + prev_a_ * lag;
+          cte = cte + (v * sin(epsi) * lag);
+          epsi = epsi + v * prev_delta_ / Lf * lag;
+          
+          states << px, py, 0, v, cte, epsi;
           auto vars = mpc.Solve(states, coeffs);
           double steer_value = -vars[0];
           double throttle_value = vars[1];
+
+          prev_a_ = throttle_value;
+          prev_delta_ = steer_value;
 
           json msgJson;
           // NOTE: Remember to divide by deg2rad(25) before you send the steering value back.
@@ -153,7 +168,7 @@ int main() {
           //.. add (x,y) points to list here, points are in reference to the vehicle's coordinate system
           // the points in the simulator are connected by a Yellow line
  
-          for (double i = 0; i < 100; i++){
+          for (double i = 0; i < 100; i += 2){
             next_x_vals.push_back(i);
             next_y_vals.push_back(polyeval(coeffs, i));
           }

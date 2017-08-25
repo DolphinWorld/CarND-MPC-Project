@@ -1,7 +1,60 @@
 # CarND-Controls-MPC
 Self-Driving Car Engineer Nanodegree Program
 
+--- 
+## Project Writeup 
+
+
+This model uses CppAD::ipopt to find the minimum cost provided by FG_eval operator method. There are six states (`psi`, `v`, `cte`, `epsi`, `delta`, and `a`), plus `x` and `y` positions. We then create cost function based on those six states. I mainly focus on cte and epsi, make sure it move to the correct reference trajectory. I also don't want the car to stop, so need to have cost function for v vs reference speed (`60 mph`). But the value of speed difference could be too big because their value are large, so I set the coefficiency of speed to 0.005. 
+
+### Choices for `dt` and `N`
+
+Since I want to calculate the cte as soon as possible, I set `dt` to `0.1`. Also, since we only use one or two points of predicted path, I set `N` to small number `30`. I tried to set the `dt` to `0.2`, the car drive toward edge twice, so I just keep it `0.1` to be a safe self-driving car. I tried to set `N` to some bigger number, but realized it is not useful because the car only took the first one or two data points.
+
+### A polynomial is fitted to waypoints.
+
+From json message, I got two vectors for `ptsx` and `ptsy`, and an angle `psi`. But `psi` is from plane coordinates to car's per I used the following code to convert them to car's coordinates.
+
+```c
+    double cos_psi = cos(-psi);
+    double sin_psi = sin(-psi);
+    for (int i = 0; i < N; i++) {
+        double dx = ptsx[i] - px;
+        double dy = ptsy[i] - py;
+
+        x_path(i) = dx * cos_psi - dy * sin_psi;
+        y_path(i) = dx * sin_psi + dy * cos_psi;
+    }
+```
+
 ---
+
+### Model details.
+
+There are two actuators, delta and a, which is tuned by `IPOPT` to make sure the cost are low. In my cost function, I set both values and their diffs with previous values to the cost function, to make the car move and turn smoothly. 
+
+The actuators value set to fields of `steering_angle` and `throttle` in the json output. The steering angle divided by `deg2rad(25)`, and turned to negative, because it is positive number when turn right, while normal angle is positive when turn anti-clockwise. I also set the `mpc_x` and `mpc_y` with the predicted position information.
+
+I use the return value indexed `delta_start` and `a_start` from `IPOPT::solve_result" as `steering_angle` and `throttle` to update in the json message. The value of steering_angle will be divided by `deg2rad(25)`.
+
+
+--- 
+
+### Lag compensation 
+
+I use default `100 ms` latency specified in main.cpp. I adjusted my equation to do some kind of prediction like following:
+
+```c
+	double lag = dt / 3600; // dt is 0.1
+        px = v * cos(psi) * lag;
+        py = v * sin(psi) * lag;
+        v  = v + prev_a_ * lag;
+        cte = cte + (v * sin(epsi) * lag);
+        epsi = epsi + v * prev_delta_ / Lf * lag;
+```
+
+
+--- 
 
 ## Dependencies
 
