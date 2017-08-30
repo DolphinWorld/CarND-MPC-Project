@@ -5,11 +5,11 @@ Self-Driving Car Engineer Nanodegree Program
 ## Project Writeup 
 
 
-This model uses CppAD::ipopt to find the minimum cost provided by FG_eval operator method. There are six states (`psi`, `v`, `cte`, `epsi`, `delta`, and `a`), plus `x` and `y` positions. We then create cost function based on those six states. I mainly focus on cte and epsi, make sure it move to the correct reference trajectory. I also don't want the car to stop, so need to have cost function for v vs reference speed (`60 mph`). But the value of speed difference could be too big because their value are large, so I set the coefficiency of speed to 0.005. 
+This model uses CppAD::ipopt to find the minimum cost provided by FG_eval operator method. There are six states (`psi`, `v`, `cte`, `epsi`, `delta`, and `a`), plus `x` and `y` positions. We then create cost function based on those six states. I mainly focus on cte and epsi, make sure it move to the correct reference trajectory. I also don't want the car to stop, so need to have cost function for v vs reference speed (`60 mph`). But the value of speed difference could be too big because their value are large, so I set the coefficiency of speed to 0.25. During test, I noticed big swing of the yellow line, I think that may because my angle and delta angle is too large, so I increased the cost of both coefficient to large values, 1200 and 1000. 
 
 ### Choices for `dt` and `N`
 
-Since I want to calculate the cte as soon as possible, I set `dt` to `0.1`. Also, since we only use one or two points of predicted path, I set `N` to small number `30`. I tried to set the `dt` to `0.2`, the car drive toward edge twice, so I just keep it `0.1` to be a safe self-driving car. I tried to set `N` to some bigger number, but realized it is not useful because the car only took the first one or two data points.
+Since I want to calculate the cte as soon as possible, I set `dt` to `0.1`. Also, since we only use one or two points of predicted path, I set `N` to small number `10`. I tried to set the `dt` to `0.2`, the accuracy dropped, the car drive toward edge twice, so I just keep it `0.1` to be a safe self-driving car. I tried to set `N` to some bigger number, but realized it is not useful because the car only took the first one or two data points, and it took longer time to calculate. The N * dt is the prediction path length. 
 
 ### A polynomial is fitted to waypoints.
 
@@ -25,6 +25,22 @@ From json message, I got two vectors for `ptsx` and `ptsy`, and an angle `psi`. 
         x_path(i) = dx * cos_psi - dy * sin_psi;
         y_path(i) = dx * sin_psi + dy * cos_psi;
     }
+```
+
+---
+
+### Update 
+
+I used the following statement to update the cte, epsi:
+
+```c
+    auto coeffs = polyfit(x_path, y_path, 3);
+    double cte = polyeval(coeffs, 0); 
+    double epsi = -atan(coeffs[1]);
+
+    px = v * 1.67 / 3600 * lag; // cos(psi) with small value is almost 1
+    py = 0;  // the sin(psi) with small psi is almost 0
+    v  = v + prev_a_ * lag;
 ```
 
 ---

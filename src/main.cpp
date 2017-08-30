@@ -20,6 +20,8 @@ double prev_a_ = 0;
 constexpr double pi() { return M_PI; }
 double deg2rad(double x) { return x * pi() / 180; }
 double rad2deg(double x) { return x * 180 / pi(); }
+double steer_value;
+double throttle_value;
 
 // Checks if the SocketIO event has JSON data.
 // If there is data the JSON object in string format will be returned,
@@ -96,7 +98,7 @@ int main() {
           double psi = j[1]["psi"];
           double v = j[1]["speed"];
 
-          double steering_angle = j[1]["steering_angle"];
+          double delta = j[1]["steering_angle"];
 
           /*
           * TODO: Calculate steering angle and throttle using MPC.
@@ -120,25 +122,24 @@ int main() {
           }
 
           auto coeffs = polyfit(x_path, y_path, 3);
-          double cte = coeffs[0];
+          double cte = polyeval(coeffs, 0); 
           double epsi = -atan(coeffs[1]);
           
           Eigen::VectorXd states(6);
           
-          double lag = dt / 3600;
-          px = v * cos(psi) * lag;
-          py = v * sin(psi) * lag;
+          double lag = dt;
+          px = v * 1.67 / 3600 * lag;
+          py = 0;
           v  = v + prev_a_ * lag;
-          cte = cte + (v * sin(epsi) * lag);
-          epsi = epsi + v * prev_delta_ / Lf * lag;
           
           states << px, py, 0, v, cte, epsi;
           auto vars = mpc.Solve(states, coeffs);
-          double steer_value = -vars[0];
-          double throttle_value = vars[1];
 
           prev_a_ = throttle_value;
           prev_delta_ = steer_value;
+
+          steer_value = -vars[0];
+          throttle_value = vars[1];
 
           json msgJson;
           // NOTE: Remember to divide by deg2rad(25) before you send the steering value back.
@@ -152,7 +153,7 @@ int main() {
 
           for (int i = 2; i < vars.size(); i += 2) {
               mpc_x_vals.push_back(vars[i]);
-              mpc_y_vals.push_back(-vars[i + 1]);
+              mpc_y_vals.push_back(vars[i + 1]);
           }
 
           //.. add (x,y) points to list here, points are in reference to the vehicle's coordinate system
@@ -168,7 +169,7 @@ int main() {
           //.. add (x,y) points to list here, points are in reference to the vehicle's coordinate system
           // the points in the simulator are connected by a Yellow line
  
-          for (double i = 0; i < 100; i += 2){
+          for (double i = 0; i < 100; i += 3){
             next_x_vals.push_back(i);
             next_y_vals.push_back(polyeval(coeffs, i));
           }
